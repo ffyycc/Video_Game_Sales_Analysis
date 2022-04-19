@@ -1,0 +1,128 @@
+---
+title: "Video Game Global Sales Analysis Project"
+author: "Yucheng Feng, Boda Song, Bowen Gu"
+date: "11/30/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(faraway)
+library(ISLR)
+library(MASS)
+library(faraway)
+```
+
+## R Markdown
+## Including Plots
+
+```{r cleaning}
+df_game = read.csv('video_game.csv')
+df_game_new = subset(df_game, Publisher == 'Nintendo' | Publisher == 'Ubisoft' | Publisher == 'Microsoft Game Studios' | Publisher == 'Activision', select = c(Name,Global_Sales,NA_Sales,JP_Sales,Publisher,Critic_Score,User_Score))
+
+df_game_new<-df_game_new[-which(is.na(df_game_new$Critic_Score),is.na(df_game_new$Userc_Score),is.na(df_game_new$Global_Sales)),]
+df_game_clean <- filter(df_game_new, Global_Sales > 0, NA_Sales > 0, JP_Sales > 0, Critic_Score > 0,User_Score>0,User_Score != 'tbd')
+head(df_game_new)
+nrow(df_game_new)
+```
+
+```{r pressure, echo=FALSE}
+games = read.csv('game_clean.csv')
+games_data = data.frame(games)
+model_1 = lm(Global_Sales ~ NA_Sales + JP_Sales + Publisher + Critic_Score + User_Score, data=games_data)
+summary(model_1)
+```
+
+For every 1 million increase in NA_Sales, I expect the Global_Sales to increase by 1.7349 million on average, holding JP_Sales, Publisher, Critic_Score and User_Score constant.
+
+I expect the intercept should be 0.644479 the publisher company of game is Nintendo, holding all other slopes to be the same.
+
+```{r model}
+model_jp = lm(Global_Sales ~ NA_Sales + JP_Sales + Publisher + Critic_Score + User_Score + Publisher*JP_Sales, data=games_data)
+summary(model_jp)
+```
+Choice: JP_Sales*Publisher
+
+```{r forward}
+game_start = lm(Global_Sales ~ 1, data = games_data)
+game_model_forward = step(
+  game_start, 
+  scope = Global_Sales ~ NA_Sales + JP_Sales + Publisher + 
+    Critic_Score + User_Score + JP_Sales:Publisher, 
+  direction = "forward")
+```
+
+```{r inclation}
+# Use this code chunk for your answer.
+model_start = lm(Global_Sales ~ NA_Sales + JP_Sales + 
+    Critic_Score + User_Score, data = games_data)
+vif(model_start) # previous
+model_remove_category = lm(Global_Sales ~ NA_Sales + JP_Sales  + 
+    Critic_Score, data = games_data)
+print("/")
+vif(model_remove_category) # after
+
+```
+Variance Inflation Factor tells us how much a variable is inflated due to multicollinearity in the model. Variance Inflation Factor helps us identify whether a variable is correlated with other variables in the model. 
+
+```{r model2}
+summary(model_jp)
+final_model = lm(Global_Sales ~ NA_Sales + JP_Sales + Publisher + 
+    Critic_Score + JP_Sales:Publisher,data = games_data)
+summary(final_model)
+```
+98.65% of the variation in the game global sales can be explained by their linear relationship with model includes NA_Sales, JP_Sales, Critic_Score, Publisher, User_Score NA_Sales:JP_Sales, JP_Sales:Publisher.
+
+98.61% of the variation in the game global sales can be explained by their linear relationship with model includes NA_Sales, JP_Sales, Critic_Score, Publisher, NA_Sales:JP_Sales, JP_Sales:Publisher.
+
+```{r lev}
+p = 10
+n = nrow(games_data)
+n
+2*p/n
+hatvalues(final_model)[hatvalues(final_model) > 2 * p / n]
+plot(final_model)
+```
+
+```{r std}
+rstand = data.frame(rstand = rstandard(final_model))
+rstand$rstand[abs(rstand$rstand) > 2]
+which(abs(rstandard(final_model)) > 2)
+```
+
+```{r cook}
+n = nrow(games_data)
+cooks.distance(final_model)[cooks.distance(final_model) > 4 / n]
+```
+
+
+```{r boxcox}
+boxcox(final_model,plotit=TRUE)
+```
+
+```{r p_test}
+summary(final_model)
+p = 10
+n = nrow(games_data)
+p*10
+n
+```
+This is reasonable, because 10*p < n
+
+```{r anova}
+final_model = lm(Global_Sales ~ NA_Sales + JP_Sales + Publisher + 
+    Critic_Score + JP_Sales:Publisher,data = games_data)
+no_NA_model = lm(Global_Sales ~ NA_Sales + JP_Sales + Publisher + 
+    Critic_Score + JP_Sales:Publisher,data = games_data)
+anova(final_model,no_NA_model)
+
+final_model = lm(Global_Sales ~ NA_Sales + JP_Sales + Publisher + 
+    Critic_Score + JP_Sales:Publisher,data = games_data)
+no_critical_model = lm(Global_Sales ~ NA_Sales + JP_Sales + Publisher + 
+    JP_Sales:Publisher,data = games_data)
+anova(final_model,no_critical_model)
+```
